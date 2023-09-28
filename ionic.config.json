@@ -1,0 +1,7 @@
+{
+  "name": "mycrseven",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "vue-vite"
+}
