@@ -7,8 +7,9 @@
             <div class="win-header">
               <ion-title class="ion-padding-bottom text-ctm-white" v-if="sessionMobile != ''">Available balance:
                 ₹{{ userBalance }}</ion-title>
-              <ion-button color="secondary" shape="round" @click="() => console.log('payment')"
-                v-if="sessionMobile != ''">Recharge
+              <ion-button color="secondary" shape="round" @click="openModalPayment()" v-if="sessionMobile != ''">Recharge
+              </ion-button>
+              <ion-button color="secondary" shape="round" @click="openModalWithdraw()" v-if="sessionMobile != ''">Withdraw
               </ion-button>
               <ion-button color="medium" shape="round" v-if="sessionMobile != ''">{{ sessionMobile }}</ion-button>
               <ion-button color="medium" shape="round" v-if="sessionMobile == ''"
@@ -16,7 +17,7 @@
               <ion-button color="medium" shape="round" v-if="sessionMobile == ''"
                 @click="openModallogin()">Login</ion-button>
               <ion-button color="medium" shape="round" v-if="sessionMobile != ''" @click="logout()">Logout</ion-button>
-              <ion-img :src="reloadIcon" class="ion-float-right reload-period"></ion-img>
+             <!-- <ion-img :src="reloadIcon" class="ion-float-right reload-period"></ion-img>-->
             </div>
           </ion-col>
         </ion-row>
@@ -157,8 +158,7 @@
         </ion-grid>
       </div>
       <div class="game-myrecord-main text-center" v-if="sessionMobile != ''">
-        <EasyDataTable  :headers="headers" :items="itemsMyRecord" buttons-pagination :rowsPerPage="rowsperpage">
-          
+        <EasyDataTable :headers="headers" :items="itemsMyRecord" buttons-pagination rowsPerPage=10>
         </EasyDataTable>
       </div>
     </ion-content>
@@ -173,6 +173,8 @@ import { useRouter } from 'vue-router';
 import type { Header } from "vue3-easy-data-table";
 import ModalRegister from './components/ModalRegister.vue'
 import ModalLogin from './components/ModalLogin.vue'
+import ModalPayment from './components/ModalPayment.vue'
+import ModalWithdraw from './components/ModalWithdraw.vue'
 import ModalParity from './components/ModalParity.vue'
 interface MyWindow extends Window {
   myFunction(): void;
@@ -229,8 +231,8 @@ export default defineComponent({
       result: 15,
       lastPeriod: 0,
       items: [{ "period": 0, "amount": 0, "result": 0, "color": '' }],
-      itemsAllRecord: [{ "perityperiod": 0, "peritytotalamount": 0, "amount": 0,"qty":0,"joinsection": '',"result":0 }],
-      itemsMyRecord: [{ "perityperiod": 0, "peritytotalamount": 0, "amount": 0,"qty":0,"joinsection": '',"result":0 }],
+      itemsAllRecord: [{ "perityperiod": 0, "peritytotalamount": 0, "amount": 0, "qty": 0, "joinsection": '', "result": 0 }],
+      itemsMyRecord: [{ "perityperiod": 0, "peritytotalamount": 0, "amount": 0, "qty": 0, "joinsection": '', "result": 0 }],
       tabFocus: false,
       balance: 0,
       sessionData: {},
@@ -243,21 +245,26 @@ export default defineComponent({
     this.getBalance()
   },
   async mounted() {
-    await axios
-      .get('http://localhost:3000/users/getPeriod', {})
-      .then(res => this.currPeriod = res?.data?.period)
+
     this.getBalance()
     this.getGridRow()
+    this.detectFocusOut()
   },
   methods: {
     async getBalance() {
+      await axios
+        .get('http://localhost:3000/users/getPeriod', {})
+        .then(res => this.currPeriod = res?.data?.period)
       let currentUser = localStorage.getItem('session_user') || '';
       await axios
         .post('http://localhost:3000/users/getBalance', { mobile: currentUser })
         .then(res => this.userBalance = res.data?.balance)
     },
-    getSessionMobile(mobile: string) {
+    async getSessionMobile(mobile: string) {
       this.sessionMobile = mobile
+      await axios
+        .post('http://localhost:3000/users/getBalance', { mobile: mobile })
+        .then(res => this.userBalance = res.data?.balance)
     },
     getSessionBalance(balance: number) {
       this.userBalance = balance
@@ -265,11 +272,11 @@ export default defineComponent({
     async getGridRow() {
       let currentUser = localStorage.getItem('session_user') || '';
       await axios
-        .get('http://localhost:3000/users/getPerity', { })
-        .then(res=>this.itemsAllRecord = res.data.data)
-        await axios
-        .post('http://localhost:3000/users/getPerityByMobile', {mobile:currentUser })
-        .then(res=>this.itemsMyRecord = res.data.data)
+        .get('http://localhost:3000/users/getPerity', {})
+        .then(res => this.itemsAllRecord = res.data.data)
+      await axios
+        .post('http://localhost:3000/users/getPerityByMobile', { mobile: currentUser })
+        .then(res => this.itemsMyRecord = res.data.data)
     },
     async openModalregister() {
       const modal = await modalController.create({
@@ -280,7 +287,21 @@ export default defineComponent({
     async openModallogin() {
       const modal = await modalController.create({
         component: ModalLogin,
-        componentProps: { getSession: this.getSessionMobile}
+        componentProps: { getSession: this.getSessionMobile }
+      });
+      modal.present();
+    },
+    async openModalPayment() {
+      const modal = await modalController.create({
+        component: ModalPayment,
+        componentProps: { getSession: this.getSessionMobile }
+      });
+      modal.present();
+    },
+    async openModalWithdraw() {
+      const modal = await modalController.create({
+        component: ModalWithdraw,
+        componentProps: { getSession: this.getSessionMobile }
       });
       modal.present();
     },
@@ -299,7 +320,7 @@ export default defineComponent({
       if (this.sessionMobile != '') {
         const modal = await modalController.create({
           component: ModalParity,
-          componentProps: { number: number,getSessionamount:this.getSessionBalance },
+          componentProps: { number: number, getSessionamount: this.getSessionBalance },
           cssClass: 'setting-modal',
           backdropDismiss: false,
         });
@@ -307,6 +328,32 @@ export default defineComponent({
       } else {
         this.openModallogin()
       }
+    },
+    //windwo loading event
+    detectFocusOut() {
+      // window.addEventListener('blur', () => {
+      //   this.showLoading()
+      // });
+      window.addEventListener('focus', () => {
+        this.showLoading()
+      });
+      window.addEventListener('pageshow', () => {
+        this.showLoading()
+
+      });
+      window.addEventListener('pagehide', () => {
+        this.showLoading()
+      });
+    },
+    async showLoading() {
+      this.getBalance()
+      this.getGridRow()
+      const loading = await loadingController.create({
+        message: 'Loading...',
+        duration: 3000,
+        spinner: 'circles'
+      });
+      loading.present();
     },
     // countdown method
     countdownmain: async function (this: any) {
@@ -330,7 +377,7 @@ export default defineComponent({
           let result = Math.floor(Math.random() * 12);
           this.result = result
         }
-        if (startsession == 1) {
+        if (startsession == 1){
           await axios
             .get('http://localhost:3000/users/getPeriod', {})
             .then(res => this.currPeriod = res?.data?.period)
@@ -340,11 +387,11 @@ export default defineComponent({
           this.isDisabled = false
           let currentUser = localStorage.getItem('session_user') || '';
           await axios
-        .get('http://localhost:3000/users/getPerity', { })
-        .then(res=>this.itemsAllRecord = res.data.data)
-        await axios
-        .post('http://localhost:3000/users/getPerityByMobile', {mobile:currentUser })
-        .then(res=>this.itemsMyRecord = res.data.data)
+            .get('http://localhost:3000/users/getPerity', {})
+            .then(res => this.itemsAllRecord = res.data.data)
+          await axios
+            .post('http://localhost:3000/users/getPerityByMobile', { mobile: currentUser })
+            .then(res => this.itemsMyRecord = res.data.data)
         }
         minutes = minutes < 10 ? 0 + minutes : minutes;
         seconds = seconds < 10 ? 0 + seconds : seconds;

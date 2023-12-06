@@ -86,6 +86,7 @@ import {
     IonInput,
     modalController,
     toastController,
+    loadingController,
 } from '@ionic/vue';
 import { defineComponent, computed } from 'vue';
 import { arrowBack } from "ionicons/icons";
@@ -154,11 +155,17 @@ export default defineComponent({
                 this.isvalid = true;
             }
             if (this.isvalid === true) {
+                const loading = await loadingController.create({
+                    message: 'Loading...',
+                    spinner: 'circles'
+                });
+                loading.present();
                 await axios
                     .post('http://localhost:3000/users/userLogin', { "mobile": this.mobile, "password": this.password })
                     .then((res) => this.loginData = res.data)
                 if (this.loginData?.status == "success") {
                     localStorage.clear()
+                    loading.dismiss();
                     this.toastfunction(this.loginData?.message, 1000);
                     let mobileUser = this.loginData?.mobile
                     localStorage.setItem("session_user", mobileUser);
@@ -167,13 +174,16 @@ export default defineComponent({
                     this.password = ''
                     return modalController.dismiss(null, 'cancel');
                 } else {
+                    loading.dismiss();
                     this.toastfunction(this.loginData?.message, 1000);
                 }
-
+                
             }
         },
-        checkAuth() {
-            console.log('check auth')
+        async checkAuth() {
+            await axios
+                .get('http://localhost:3000/users/check', {})
+                .then((res) => console.log('check login'))
         },
         async toastfunction(message: string, duration?: number) {
             const toast = await toastController.create({
